@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Envelope Budget" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <title>Envelope Budget</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;--card:#fff;--text:#101828;--muted:#667085;--line:#e4e7ec;
+      --primary:#2563eb;--success:#16a34a;--danger:#dc2626;--warning:#d97706;
+      --shadow:0 10px 30px rgba(16,24,40,.08);--radius:20px
+    }
+    @media(prefers-color-scheme:dark){
+      :root{--bg:#0b1220;--card:#121a2a;--text:#f8fafc;--muted:#94a3b8;--line:#263247;
+      --primary:#60a5fa;--success:#4ade80;--danger:#f87171;--warning:#fbbf24;--shadow:0 10px 30px rgba(0,0,0,.25)}
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);padding-bottom:94px}
+    .app{max-width:720px;margin:auto;padding:env(safe-area-inset-top) 16px 30px}
+    header{padding:18px 4px 12px;display:flex;justify-content:space-between;align-items:center}
+    h1{margin:0;font-size:28px;letter-spacing:-.6px}
+    .sub,.muted{color:var(--muted);font-size:13px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin:12px 0}
+    .summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .stat{padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
+    .stat b{display:block;font-size:19px;margin-top:4px}
+    .label{font-size:12px;color:var(--muted)}
+    .row{display:flex;align-items:center;gap:12px}.between{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .emoji{font-size:30px;width:42px;text-align:center}.title{font-weight:700}.money{font-weight:800}
+    .progress{height:9px;background:var(--line);border-radius:999px;overflow:hidden;margin-top:10px}.bar{height:100%;background:var(--primary);border-radius:999px}
+    button{border:0;border-radius:14px;padding:12px 14px;font-weight:700;font-size:14px;cursor:pointer;background:var(--primary);color:#fff}
+    button.secondary{background:transparent;color:var(--text);border:1px solid var(--line)}
+    button.success{background:var(--success)} button.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
+    .small{padding:9px 11px;font-size:13px}
+    .nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding:9px 4px calc(9px + env(safe-area-inset-bottom));z-index:30}
+    .nav button{background:transparent;color:var(--muted);padding:8px 12px;min-width:70px}.nav button.active{color:var(--primary)}
+    .section{display:none}.section.active{display:block}
+    input,select{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:14px;background:var(--card);color:var(--text);font-size:16px;outline:none}
+    label{display:block;font-size:13px;color:var(--muted);margin:10px 0 6px}
+    dialog{width:min(92vw,520px);border:1px solid var(--line);border-radius:22px;padding:0;background:var(--card);color:var(--text)}
+    dialog::backdrop{background:rgba(0,0,0,.45)} .modal{padding:18px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .pill{display:inline-block;padding:5px 9px;border-radius:999px;background:var(--bg);font-size:12px;color:var(--muted)}
+    .due{margin-top:8px;font-size:13px}.due.soon{color:var(--warning);font-weight:700}.due.overdue{color:var(--danger);font-weight:700}
+    .empty{text-align:center;color:var(--muted);padding:28px 8px}
+    .history-row{padding:14px 0;border-bottom:1px solid var(--line)} .history-row:last-child{border-bottom:0}
+    @media(max-width:480px){.summary{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}.nav button{padding:8px 6px;min-width:62px}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>💸 Envelope Budget</h1>
+      <div class="sub">Plan each dollar with simple envelopes.</div>
+    </div>
+    <button class="secondary small" onclick="openSettings()">⚙️</button>
+  </header>
+
+  <section id="home" class="section active">
+    <div class="summary">
+      <div class="stat"><span class="label">Available</span><b id="sumAvailable">$0</b></div>
+      <div class="stat"><span class="label">Envelopes</span><b id="sumAllocated">$0</b></div>
+      <div class="stat"><span class="label">Savings</span><b id="sumSavings">$0</b></div>
+    </div>
+
+    <div class="card">
+      <div class="between">
+        <div><div class="title">Weekly deposit</div><div class="muted">Record this week's deposit when it arrives.</div></div>
+        <div class="money" id="weeklyAmount">$0</div>
+      </div>
+      <div class="actions">
+        <button class="success" onclick="recordWeeklyDeposit()">✓ Record deposit</button>
+      </div>
+      <div id="lastDeposit" class="muted" style="margin-top:10px"></div>
+    </div>
+
+    <div style="margin:20px 4px 8px">
+      <div class="title">Your envelopes</div>
+      <div class="muted">Balances and upcoming due dates</div>
+    </div>
+    <div id="homeEnvelopes"></div>
+  </section>
+
+  <section id="envelopes" class="section">
+    <div class="between" style="margin:14px 4px 8px">
+      <div><div class="title" style="font-size:22px">Envelopes</div><div class="muted">Manage balances, due dates, and payments.</div></div>
+      <button class="small" onclick="openEnvelope()">+ Add</button>
+    </div>
+    <div id="envelopeList"></div>
+  </section>
+
+  <section id="savings" class="section">
+    <div class="between" style="margin:14px 4px 8px">
+      <div><div class="title" style="font-size:22px">Savings goals</div><div class="muted">Set a target amount and completion date.</div></div>
+      <button class="small" onclick="openSavings()">+ Goal</button>
+    </div>
+    <div id="savingsList"></div>
+  </section>
+
+  <section id="deposits" class="section">
+    <div style="margin:14px 4px 8px">
+      <div class="title" style="font-size:22px">Deposit history</div>
+      <div class="muted">Every recorded deposit appears here.</div>
+    </div>
+    <div class="card">
+      <div class="between"><div class="title">Total deposited</div><div class="money" id="depositTotal">$0</div></div>
+    </div>
+    <div class="card" id="depositHistory"></div>
+  </section>
+</div>
+
+<nav class="nav">
+  <button class="active" onclick="showTab('home',this)">🏠<br><span class="label">Home</span></button>
+  <button onclick="showTab('envelopes',this)">✉️<br><span class="label">Envelopes</span></button>
+  <button onclick="showTab('savings',this)">🏦<br><span class="label">Savings</span></button>
+  <button onclick="showTab('deposits',this)">📥<br><span class="label">Deposits</span></button>
+</nav>
+
+<dialog id="envDialog">
+<form method="dialog" class="modal" onsubmit="saveEnvelope(event)">
+  <div class="between"><h3 style="margin:0">Envelope</h3><button type="button" class="secondary small" onclick="envDialog.close()">✕</button></div>
+  <input type="hidden" id="envId">
+  <div class="grid2">
+    <div><label>Emoji</label><input id="envEmoji" value="💵" maxlength="4"></div>
+    <div><label>Name</label><input id="envName" required placeholder="Electric bill"></div>
+  </div>
+  <div class="grid2">
+    <div><label>Current balance</label><input id="envBalance" type="number" step="0.01" min="0" value="0"></div>
+    <div><label>Target amount</label><input id="envTarget" type="number" step="0.01" min="0" value="0"></div>
+  </div>
+  <label>Payment due date</label><input id="envDue" type="date">
+  <label>Repeat due date</label>
+  <select id="envRepeat">
+    <option value="monthly">Monthly</option>
+    <option value="none">Do not repeat</option>
+  </select>
+  <div class="actions"><button type="submit">Save envelope</button></div>
+</form>
+</dialog>
+
+<dialog id="saveDialog">
+<form method="dialog" class="modal" onsubmit="saveSavings(event)">
+  <div class="between"><h3 style="margin:0">Savings goal</h3><button type="button" class="secondary small" onclick="saveDialog.close()">✕</button></div>
+  <input type="hidden" id="saveId">
+  <div class="grid2">
+    <div><label>Emoji</label><input id="saveEmoji" value="🏦" maxlength="4"></div>
+    <div><label>Name</label><input id="saveName" required placeholder="Emergency fund"></div>
+  </div>
+  <div class="grid2">
+    <div><label>Saved so far</label><input id="saveBalance" type="number" step="0.01" min="0" value="0"></div>
+    <div><label>Goal</label><input id="saveTarget" type="number" step="0.01" min="0" value="0"></div>
+  </div>
+  <label>Complete by</label><input id="saveDue" type="date">
+  <div class="actions"><button type="submit">Save goal</button></div>
+</form>
+</dialog>
+
+<dialog id="fundDialog">
+<form method="dialog" class="modal" onsubmit="applyFund(event)">
+  <div class="between"><h3 id="fundTitle" style="margin:0">Add money</h3><button type="button" class="secondary small" onclick="fundDialog.close()">✕</button></div>
+  <input type="hidden" id="fundType"><input type="hidden" id="fundId"><input type="hidden" id="fundSign" value="1">
+  <div id="fundSuggestion" class="card" style="margin:12px 0;padding:14px;box-shadow:none;display:none">
+    <div class="between">
+      <div>
+        <div class="title">Suggested this week</div>
+        <div class="muted" id="fundSuggestionReason">Based on your weekly pay and upcoming bills.</div>
+      </div>
+      <div class="money" id="fundSuggestedAmount">$0</div>
+    </div>
+    <div class="actions" style="margin-top:10px">
+      <button type="button" class="secondary small" onclick="useSuggestedAmount()">Use suggested</button>
+    </div>
+  </div>
+  <label>Amount</label><input id="fundAmount" type="number" step="0.01" min="0.01" required placeholder="25.00">
+  <div class="actions"><button type="submit">Apply</button><button type="button" class="secondary" onclick="setFundMode(-1)">Remove money</button></div>
+</form>
+</dialog>
+
+<dialog id="settingsDialog">
+<form method="dialog" class="modal" onsubmit="saveSettings(event)">
+  <div class="between"><h3 style="margin:0">Settings</h3><button type="button" class="secondary small" onclick="settingsDialog.close()">✕</button></div>
+  <label>Weekly deposit amount</label><input id="settingWeekly" type="number" step="0.01" min="0">
+  <label>Unallocated cash</label><input id="settingCash" type="number" step="0.01" min="0">
+  <div class="actions"><button type="submit">Save settings</button><button type="button" class="danger" onclick="resetAll()">Reset all data</button></div>
+</form>
+</dialog>
+
+<script>
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(n||0));
+
+function loadData(){
+  const v3=JSON.parse(localStorage.getItem('envelopeBudgetDataV3')||'null');
+  if(v3) return v3;
+  const old=JSON.parse(localStorage.getItem('envelopeBudgetDataV2')||'null');
+  if(old){
+    old.deposits=[];
+    old.envelopes=(old.envelopes||[]).map(x=>({...x,repeat:x.repeat||'monthly'}));
+    return old;
+  }
+  return {
+    weeklyDeposit:500,cash:0,
+    envelopes:[
+      {id:crypto.randomUUID(),emoji:'🏠',name:'Rent',balance:800,target:1200,due:'',repeat:'monthly'},
+      {id:crypto.randomUUID(),emoji:'📱',name:'Phone',balance:80,target:100,due:'',repeat:'monthly'}
+    ],
+    savings:[{id:crypto.randomUUID(),emoji:'🏖️',name:'Vacation',balance:650,target:2000,due:''}],
+    deposits:[]
+  };
+}
+let data=loadData();
+
+function persist(){localStorage.setItem('envelopeBudgetDataV3',JSON.stringify(data));render()}
+function progress(b,t){return t>0?Math.min(100,(b/t)*100):0}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function fmtDate(date){
+  if(!date)return '';
+  return new Date(date+'T12:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+}
+function dueText(date){
+  if(!date)return {text:'No due date set',cls:''};
+  const d=new Date(date+'T12:00:00'), today=new Date(); today.setHours(0,0,0,0);
+  const days=Math.ceil((d-today)/86400000), formatted=fmtDate(date);
+  if(days<0)return{text:`Overdue • ${formatted}`,cls:'overdue'};
+  if(days<=7)return{text:`Due soon • ${formatted}`,cls:'soon'};
+  return{text:`Due ${formatted}`,cls:''};
+}
+function addOneMonth(dateStr){
+  if(!dateStr)return '';
+  const [y,m,d]=dateStr.split('-').map(Number);
+  const first=new Date(y,m,1,12,0,0);
+  const lastDay=new Date(y,m+1,0,12,0,0).getDate();
+  const day=Math.min(d,lastDay);
+  const next=new Date(y,m,day,12,0,0);
+  const yy=next.getFullYear(), mm=String(next.getMonth()+1).padStart(2,'0'), dd=String(next.getDate()).padStart(2,'0');
+  return `${yy}-${mm}-${dd}`;
+}
+function envCard(x,home=false){
+  const p=progress(x.balance,x.target),due=dueText(x.due);
+  const repeat=x.repeat==='monthly'?' • Monthly':'';
+  return `<div class="card">
+    <div class="between">
+      <div class="row"><div class="emoji">${x.emoji||'💵'}</div><div><div class="title">${esc(x.name)}</div><div class="muted">${money(x.balance)} of ${money(x.target)}</div></div></div>
+      <div class="money">${money(x.balance)}</div>
+    </div>
+    <div class="progress"><div class="bar" style="width:${p}%"></div></div>
+    <div class="due ${due.cls}">${due.text}${repeat}</div>
+    ${home?'':`<div class="actions">
+      <button class="small" onclick="openFund('env','${x.id}',1)">+ Add money</button>
+      <button class="secondary small" onclick="editEnvelope('${x.id}')">Edit</button>
+      <button class="success small" onclick="confirmPaid('${x.id}')">✓ Paid</button>
+      <button class="danger small" onclick="removeItem('env','${x.id}')">Remove</button>
+    </div>`}
+  </div>`;
+}
+function saveCard(x){
+  const p=progress(x.balance,x.target);
+  return `<div class="card">
+    <div class="between">
+      <div class="row"><div class="emoji">${x.emoji||'🏦'}</div><div><div class="title">${esc(x.name)}</div><div class="muted">${money(x.balance)} of ${money(x.target)}</div></div></div>
+      <div class="money">${money(x.balance)}</div>
+    </div>
+    <div class="progress"><div class="bar" style="width:${p}%"></div></div>
+    <div class="due">${x.due?'Complete by '+fmtDate(x.due):'No completion date set'}</div>
+    <div class="actions">
+      <button class="small" onclick="openFund('save','${x.id}',1)">+ Add money</button>
+      <button class="secondary small" onclick="editSavings('${x.id}')">Edit</button>
+      <button class="danger small" onclick="removeItem('save','${x.id}')">Remove</button>
+    </div>
+  </div>`;
+}
+function renderDeposits(){
+  const list=[...(data.deposits||[])].sort((a,b)=>new Date(b.date)-new Date(a.date));
+  $('depositTotal').textContent=money(list.reduce((s,x)=>s+Number(x.amount||0),0));
+  $('depositHistory').innerHTML=list.length?list.map(x=>`
+    <div class="between history-row">
+      <div><div class="title">${fmtDate(x.date)}</div><div class="muted">${x.note||'Weekly deposit'}</div></div>
+      <div class="money">${money(x.amount)}</div>
+    </div>`).join(''):'<div class="empty">No deposits recorded yet.</div>';
+  const last=list[0];
+  $('lastDeposit').textContent=last?`Last deposit: ${money(last.amount)} on ${fmtDate(last.date)}`:'No deposits recorded yet.';
+}
+function render(){
+  data.envelopes=data.envelopes||[]; data.savings=data.savings||[]; data.deposits=data.deposits||[];
+  const allocated=data.envelopes.reduce((s,x)=>s+Number(x.balance||0),0);
+  const saved=data.savings.reduce((s,x)=>s+Number(x.balance||0),0);
+  $('sumAvailable').textContent=money(data.cash);$('sumAllocated').textContent=money(allocated);$('sumSavings').textContent=money(saved);$('weeklyAmount').textContent=money(data.weeklyDeposit);
+  $('homeEnvelopes').innerHTML=data.envelopes.length?data.envelopes.map(x=>envCard(x,true)).join(''):'<div class="card empty">No envelopes yet.</div>';
+  $('envelopeList').innerHTML=data.envelopes.length?data.envelopes.map(x=>envCard(x,false)).join(''):'<div class="card empty">Create your first envelope.</div>';
+  $('savingsList').innerHTML=data.savings.length?data.savings.map(saveCard).join(''):'<div class="card empty">Create your first savings goal.</div>';
+  renderDeposits();
+}
+function showTab(id,btn){document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));btn.classList.add('active')}
+
+function recordWeeklyDeposit(){
+  const amount=Number(data.weeklyDeposit||0);
+  if(amount<=0){alert('Set a weekly deposit amount in Settings first.');return;}
+  const today=new Date();
+  const date=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  if(!confirm(`Record a ${money(amount)} deposit for today?`))return;
+  data.deposits.push({id:crypto.randomUUID(),date,amount,note:'Weekly deposit'});
+  data.cash=Number(data.cash||0)+amount;
+  persist();
+}
+
+function openEnvelope(){$('envId').value='';$('envEmoji').value='💵';$('envName').value='';$('envBalance').value='0';$('envTarget').value='0';$('envDue').value='';$('envRepeat').value='monthly';envDialog.showModal()}
+function editEnvelope(id){const x=data.envelopes.find(x=>x.id===id);if(!x)return;$('envId').value=x.id;$('envEmoji').value=x.emoji;$('envName').value=x.name;$('envBalance').value=x.balance;$('envTarget').value=x.target;$('envDue').value=x.due||'';$('envRepeat').value=x.repeat||'monthly';envDialog.showModal()}
+function saveEnvelope(e){e.preventDefault();const obj={id:$('envId').value||crypto.randomUUID(),emoji:$('envEmoji').value||'💵',name:$('envName').value.trim(),balance:Number($('envBalance').value||0),target:Number($('envTarget').value||0),due:$('envDue').value||'',repeat:$('envRepeat').value};const i=data.envelopes.findIndex(x=>x.id===obj.id);if(i>=0)data.envelopes[i]=obj;else data.envelopes.push(obj);envDialog.close();persist()}
+function confirmPaid(id){
+  const x=data.envelopes.find(x=>x.id===id); if(!x)return;
+  let msg=`Confirm ${x.name} has been paid? Its envelope balance will reset to $0.`;
+  if(x.repeat==='monthly'&&x.due)msg+=` The due date will move to ${fmtDate(addOneMonth(x.due))}.`;
+  if(confirm(msg)){
+    x.balance=0;
+    if(x.repeat==='monthly'&&x.due)x.due=addOneMonth(x.due);
+    persist();
+  }
+}
+function openSavings(){$('saveId').value='';$('saveEmoji').value='🏦';$('saveName').value='';$('saveBalance').value='0';$('saveTarget').value='0';$('saveDue').value='';saveDialog.showModal()}
+function editSavings(id){const x=data.savings.find(x=>x.id===id);if(!x)return;$('saveId').value=x.id;$('saveEmoji').value=x.emoji;$('saveName').value=x.name;$('saveBalance').value=x.balance;$('saveTarget').value=x.target;$('saveDue').value=x.due||'';saveDialog.showModal()}
+function saveSavings(e){e.preventDefault();const obj={id:$('saveId').value||crypto.randomUUID(),emoji:$('saveEmoji').value||'🏦',name:$('saveName').value.trim(),balance:Number($('saveBalance').value||0),target:Number($('saveTarget').value||0),due:$('saveDue').value||''};const i=data.savings.findIndex(x=>x.id===obj.id);if(i>=0)data.savings[i]=obj;else data.savings.push(obj);saveDialog.close();persist()}
+
+function weeksUntilDue(dateStr){
+  if(!dateStr) return 4;
+  const today=new Date(); today.setHours(0,0,0,0);
+  const due=new Date(dateStr+'T12:00:00');
+  const days=Math.max(1,Math.ceil((due-today)/86400000));
+  return Math.max(1,Math.ceil(days/7));
+}
+function envelopeRequiredThisWeek(x){
+  const remaining=Math.max(0,Number(x.target||0)-Number(x.balance||0));
+  if(remaining<=0) return 0;
+  return remaining/weeksUntilDue(x.due);
+}
+function suggestedEnvelopeAmount(id){
+  const env=data.envelopes.find(x=>x.id===id);
+  if(!env) return 0;
+  const weekly=Math.max(0,Number(data.weeklyDeposit||0));
+  if(weekly<=0) return 0;
+
+  const needs=data.envelopes.map(x=>({
+    id:x.id,
+    remaining:Math.max(0,Number(x.target||0)-Number(x.balance||0)),
+    required:envelopeRequiredThisWeek(x)
+  })).filter(x=>x.remaining>0);
+
+  const totalRequired=needs.reduce((s,x)=>s+x.required,0);
+  const mine=needs.find(x=>x.id===id);
+  if(!mine) return 0;
+
+  let suggested;
+  if(totalRequired<=weekly){
+    suggested=mine.required;
+  }else{
+    suggested=weekly*(mine.required/totalRequired);
+  }
+
+  suggested=Math.min(suggested,mine.remaining);
+  return Math.max(0,Math.round(suggested*100)/100);
+}
+function showFundSuggestion(type,id){
+  const box=$('fundSuggestion');
+  if(type!=='env'){
+    box.style.display='none';
+    return;
+  }
+  const env=data.envelopes.find(x=>x.id===id);
+  const suggested=suggestedEnvelopeAmount(id);
+  $('fundSuggestedAmount').textContent=money(suggested);
+
+  const weeks=weeksUntilDue(env?.due);
+  const remaining=Math.max(0,Number(env?.target||0)-Number(env?.balance||0));
+  if(remaining<=0){
+    $('fundSuggestionReason').textContent='This envelope is already fully funded.';
+  }else if(env?.due){
+    $('fundSuggestionReason').textContent=`Based on ${money(data.weeklyDeposit)} weekly pay, ${weeks} week${weeks===1?'':'s'} until due, and your other envelopes.`;
+  }else{
+    $('fundSuggestionReason').textContent=`Based on ${money(data.weeklyDeposit)} weekly pay and the remaining needs across your envelopes.`;
+  }
+  box.style.display='block';
+}
+function useSuggestedAmount(){
+  const id=$('fundId').value;
+  const amt=suggestedEnvelopeAmount(id);
+  if(amt>0) $('fundAmount').value=amt.toFixed(2);
+}
+
+function openFund(type,id,sign){$('fundType').value=type;$('fundId').value=id;$('fundSign').value=sign;$('fundAmount').value='';$('fundTitle').textContent=sign===1?'Add money':'Remove money';showFundSuggestion(type,id);fundDialog.showModal()}
+function setFundMode(sign){$('fundSign').value=sign;$('fundTitle').textContent='Remove money'}
+function applyFund(e){e.preventDefault();const type=$('fundType').value,id=$('fundId').value,amt=Number($('fundAmount').value||0),sign=Number($('fundSign').value||1);const list=type==='env'?data.envelopes:data.savings;const x=list.find(x=>x.id===id);if(!x)return;if(sign===1){const used=Math.min(amt,Number(data.cash||0));x.balance=Number(x.balance||0)+used;data.cash=Number(data.cash||0)-used;if(used<amt&&confirm('Not enough unallocated cash. Add the remaining amount anyway?'))x.balance+=(amt-used)}else{const removed=Math.min(amt,Number(x.balance||0));x.balance-=removed;data.cash=Number(data.cash||0)+removed}fundDialog.close();persist()}
+function removeItem(type,id){if(!confirm('Remove this item?'))return;if(type==='env')data.envelopes=data.envelopes.filter(x=>x.id!==id);else data.savings=data.savings.filter(x=>x.id!==id);persist()}
+function openSettings(){$('settingWeekly').value=data.weeklyDeposit;$('settingCash').value=data.cash;settingsDialog.showModal()}
+function saveSettings(e){e.preventDefault();data.weeklyDeposit=Number($('settingWeekly').value||0);data.cash=Number($('settingCash').value||0);settingsDialog.close();persist()}
+function resetAll(){if(!confirm('This will erase all saved budget data on this device. Continue?'))return;localStorage.removeItem('envelopeBudgetDataV3');localStorage.removeItem('envelopeBudgetDataV2');location.reload()}
+render();
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{})}
+</script>
+</body>
+</html>
